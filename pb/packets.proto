@@ -1,0 +1,13 @@
+syntax = "proto3";
+package pb;
+
+message Packet {
+    PacketType type     = 1;
+    bytes      content  = 2;
+}
+
+enum PacketType {
+    INTERNAL    = 0;
+    MESSAGE     = 1;
+    BROADCAST   = 2;
+}
