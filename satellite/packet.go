@@ -3,7 +3,6 @@ package satellite
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"time"
 
 	"github.com/perlin-network/noise"
@@ -20,6 +19,9 @@ const (
 	PType_Request
 	PType_Response
 	PType_ResponseEnd
+
+	PType_NotImplemented
+	PType_Error
 )
 
 type Packet struct {

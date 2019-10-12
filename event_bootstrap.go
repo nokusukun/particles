@@ -17,7 +17,7 @@ func bootstrapEvents(sat *satellite.Satellite, db *bolt.DB) {
 	log := log.Sub("events")
 
 	sat.Event(satellite.PType_Message, "hello", func(i *satellite.Inbound) {
-		log.Info(i.PeerID(), " said hello!")
+		log.Info(i.PeerID(), " said ", i.Payload.(string))
 	})
 
 	sat.Event(satellite.PType_Broadcast, "new_rating", func(i *satellite.Inbound) {
@@ -50,9 +50,14 @@ func bootstrapEvents(sat *satellite.Satellite, db *bolt.DB) {
 	})
 
 	sat.Event(satellite.PType_Request, "get_rating", func(i *satellite.Inbound) {
+		// A pretty ugly oneliner to cast the payload as a struct
 		req := i.As(&RatingRequest{}).(*RatingRequest)
+
+		// Signal the requesting peer that there are no more responses left
+		// Not responding with EndReply will end up as a timeout for the other peer
 		defer i.EndReply()
 
+		// Standard database stuff
 		err := db.View(func(tx *bolt.Tx) error {
 			b := tx.Bucket([]byte("ratings"))
 			cur := b.Cursor()
@@ -61,12 +66,15 @@ func bootstrapEvents(sat *satellite.Satellite, db *bolt.DB) {
 
 			for k, v := cur.First(); k != nil; k, v = cur.Next() {
 				if bytes.HasPrefix(k, r) || bytes.HasSuffix(k, r) {
+					// Unmarshal the data into a Rating struct
 					rat := Rating{}
 					err := json.Unmarshal(v, &rat)
 					if err != nil {
 						log.Error("Failed to marshal:", string(k))
 						continue
 					}
+					// Respond to the requesting peer with the Rating struct
+					// The remote peer will receive the ratings as a channel stream
 					i.Reply(rat)
 				}
 			}

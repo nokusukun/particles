@@ -2,7 +2,6 @@ package satellite
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 
 	"github.com/perlin-network/noise"
@@ -11,9 +10,9 @@ import (
 )
 
 var (
-	log_inbound                = "Inbound"
-	_           protocol.Block = (*SatPlug)(nil)
-	_           noise.Message  = (*Packet)(nil)
+	logInbound                = "Inbound"
+	_          protocol.Block = (*SatPlug)(nil)
+	_          noise.Message  = (*Packet)(nil)
 )
 
 type Inbound struct {
@@ -72,6 +71,20 @@ func (i *Inbound) EndReply() {
 	}
 }
 
+func (i *Inbound) failNotImplemented() {
+	tag := i.Message.returnTag()
+	log.Debug("Ending response stream to:", i.PeerID(), tag)
+	err2 := i.Peer.SendMessage(&Packet{
+		PacketType: PType_NotImplemented,
+		Namespace:  tag,
+		Payload:    "",
+	})
+
+	if err2 != nil {
+		log.Error("Failed to terminate failed response")
+	}
+}
+
 type SatPlug struct {
 	Satellite *Satellite
 
@@ -84,9 +97,29 @@ type SatPlug struct {
 func (b *SatPlug) OnBegin(p *protocol.Protocol, peer *noise.Peer) error {
 	id := hex.EncodeToString(protocol.PeerID(peer).(skademlia.ID).PublicKey())
 
-	if _, exists := b.Satellite.Peers[id]; exists {
-		log.Error("Peer already connected:", id)
-		return protocol.DisconnectPeer
+	if oldPeer, exists := b.Satellite.Peers[id]; exists {
+		acceptNewPeer := false
+		rs, err := b.Satellite.Request(oldPeer, "__INTERNAL_PING", 0)
+
+		if err != nil {
+			// assume that having an errored request means that the old Peer is already dead
+			log.Debug("ping request failed ", id)
+			acceptNewPeer = true
+		} else {
+			if <-rs.Done != StreamEndOK {
+				// assume that the request hasn't been fulfilled due to an error,
+				// disconnect to be safe.
+				log.Debug("ping request stream failed ", id)
+				acceptNewPeer = true
+			}
+		}
+
+		if !acceptNewPeer {
+			log.Error("Peer already connected:", id)
+			return protocol.DisconnectPeer
+		} else {
+			log.Verbosef("Old peer (%v) connection deemed inactive, going with the new one", id)
+		}
 	}
 
 	b.Satellite.SetPeer(id, peer)
@@ -117,15 +150,15 @@ func hexify(pids []skademlia.ID) []string {
 }
 
 func (b *SatPlug) ReceiveSatelliteEvents(peer *noise.Peer, kill chan interface{}) {
-	log.Sub(log_inbound).Infof("rse starting")
+	log.Sub(logInbound).Infof("rse starting")
 	for {
 		select {
 		case <-kill:
-			log.Sub(log_inbound).Infof("rse terminated")
+			log.Sub(logInbound).Infof("rse terminated")
 			return
 
 		case msg := <-peer.Receive(b.inOp):
-			log.Sub(log_inbound).Info("Received Inbound: ", msg.(Packet).PacketType)
+			log.Sub(logInbound).Info("Received Inbound: ", msg.(Packet).PacketType)
 			b.Inbounds <- &Inbound{
 				Peer:    peer,
 				Message: msg.(Packet),
@@ -144,13 +177,13 @@ func (b *SatPlug) OnEnd(p *protocol.Protocol, peer *noise.Peer) error {
 
 func (b *SatPlug) OnRegister(p *protocol.Protocol, node *noise.Node) {
 	b.inOp = noise.RegisterMessage(noise.NextAvailableOpcode(), (*Packet)(nil))
-	log.Sub(log_inbound).Debugf("Message Opcode: %v", b.inOp)
+	log.Sub(logInbound).Debugf("Message Opcode: %v", b.inOp)
 }
 
 func (b *SatPlug) ProcessSatelliteEvents() {
 	// wait for a satellite to be registered to start processing the satellite events
 	<-b.registeredSat
-	log.Sub(log_inbound).Info("Event Processor started")
+	log.Sub(logInbound).Info("Event Processor started")
 	for in := range b.Inbounds {
 		eventSig := fmt.Sprintf("%v/%v", in.Message.PacketType, in.Message.Namespace)
 		ev, exists := b.Satellite.Events[eventSig]
@@ -159,6 +192,7 @@ func (b *SatPlug) ProcessSatelliteEvents() {
 			go ev(in)
 		} else {
 			log.Error("Received foreign event signature: ", eventSig)
+			in.failNotImplemented()
 		}
 
 	}
@@ -166,6 +200,12 @@ func (b *SatPlug) ProcessSatelliteEvents() {
 
 func (b *SatPlug) RegisterSatellite(s *Satellite) {
 	b.Satellite = s
+	// Setting up internal satellite events
+	s.Event(PType_Internal, "__INTERNAL_PING", func(i *Inbound) {
+		i.Reply(0)
+		i.EndReply()
+	})
+
 	b.registeredSat <- 1
 }
 

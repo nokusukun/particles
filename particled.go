@@ -1,5 +1,6 @@
 package main
 
+import "C"
 import (
 	"bufio"
 	"encoding/hex"
@@ -7,7 +8,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-
 	"os"
 
 	"github.com/boltdb/bolt"
@@ -34,6 +34,7 @@ func init() {
 	flag.StringVar(&cdae.KeyPath, "key", "", "Read/write key from/to path")
 	flag.BoolVar(&cdae.GenerateNewKeys, "generate", false, "Generate new keys")
 	flag.BoolVar(&cdae.ShowHelp, "h", false, "Show help")
+	flag.IntVar(&roggy.LogLevel, "log", 2, "log level 0~5")
 	flag.Parse()
 
 	if cdae.ShowHelp {
@@ -42,11 +43,15 @@ func init() {
 	}
 
 	zerolog.SetGlobalLevel(zerolog.Disabled)
-	roggy.LogLevel = 5
+	printSplash()
+	//roggy.LogLevel = 5
 }
 
 func main() {
 	log.Info("Starting Particle Daemon")
+	// notices
+
+	log.Debug(roggy.Clr("TURNING ON DEBUG LOGS WILL SEVERELY IMPACT PERFORMANCE", 1))
 
 	// database initialization
 	db, err := bolt.Open(cdae.DatabasePath, os.ModePerm, nil)
@@ -74,11 +79,11 @@ func main() {
 
 	// API
 	if cdae.ApiListen != "" {
-		log.Info("Starting API on:", cdae.ApiListen)
+		log.Notice("Starting API on:", cdae.ApiListen)
 		router := generateAPI(sat)
 		log.Error(http.ListenAndServe(cdae.ApiListen, router))
 	} else {
-		log.Info("No API port provided")
+		log.Notice("No API port provided")
 	}
 
 	defer func() {
@@ -128,4 +133,20 @@ func getKeys(path string) (*skademlia.Keypair, error) {
 	}
 
 	return keys.ReadKeys(path)
+}
+
+func printSplash() {
+	fmt.Print(roggy.Clr(`
+                                      I8                    ,dPYb,                  8I 
+                                      I8                    IP''Yb                  8I 
+                                   88888888  gg             I8  8I                  8I 
+                                      I8     ""             I8  8'                  8I 
+ gg,gggg,      ,gggg,gg   ,gggggg,    I8     gg     ,gggg,  I8 dP   ,ggg,     ,gggg,8I 
+ I8P"  "Yb    dP"  "Y8I   dP""""8I    I8     88    dP"  "Yb I8dP   i8" "8i   dP"  "Y8I 
+ I8'    ,8i  i8'    ,8I  ,8'    8I   ,I8,    88   i8'       I8P    I8, ,8I  i8'    ,8I 
+,I8 _  ,d8' ,d8,   ,d8b,,dP     Y8, ,d88b, _,88,_,d8,_    _,d8b,_  'YbadP' ,d8,   ,d8b,
+PI8 YY88888PP"Y8888P"'Y88P      'Y888P""Y888P""Y8P""Y8888PP8P'"Y88888P"Y888P"Y8888P"'Y8
+ I8                                                                                    
+ ?`, roggy.LogLevel))
+	fmt.Print(roggy.Clr(fmt.Sprintf("\t[ Particle Daemon running on log level %v ]\n", roggy.LogLevel), roggy.LogLevel))
 }

@@ -85,6 +85,7 @@ func (p *LogPrinter) Sub(service string) *LogPrinter {
 }
 
 func (p *LogPrinter) Notice(message ...interface{}) {
+
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
 	if !running {
@@ -94,6 +95,7 @@ func (p *LogPrinter) Notice(message ...interface{}) {
 }
 
 func (p *LogPrinter) Noticef(f string, message ...interface{}) {
+
 	msg := fmt.Sprintf(f, message...)
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
@@ -104,6 +106,9 @@ func (p *LogPrinter) Noticef(f string, message ...interface{}) {
 }
 
 func (p *LogPrinter) Info(message ...interface{}) {
+	if LogLevel < 1 {
+		return
+	}
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
 	if !running {
@@ -113,6 +118,9 @@ func (p *LogPrinter) Info(message ...interface{}) {
 }
 
 func (p *LogPrinter) Infof(f string, message ...interface{}) {
+	if LogLevel < 1 {
+		return
+	}
 	msg := fmt.Sprintf(f, message...)
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
@@ -123,6 +131,9 @@ func (p *LogPrinter) Infof(f string, message ...interface{}) {
 }
 
 func (p *LogPrinter) Error(message ...interface{}) {
+	if LogLevel < 2 {
+		return
+	}
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
 	if !running {
@@ -132,6 +143,9 @@ func (p *LogPrinter) Error(message ...interface{}) {
 }
 
 func (p *LogPrinter) Errorf(f string, message ...interface{}) {
+	if LogLevel < 2 {
+		return
+	}
 	msg := fmt.Sprintf(f, message...)
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
@@ -142,6 +156,9 @@ func (p *LogPrinter) Errorf(f string, message ...interface{}) {
 }
 
 func (p *LogPrinter) Verbose(message ...interface{}) {
+	if LogLevel < 3 {
+		return
+	}
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
 	if !running {
@@ -151,6 +168,9 @@ func (p *LogPrinter) Verbose(message ...interface{}) {
 }
 
 func (p *LogPrinter) Verbosef(f string, message ...interface{}) {
+	if LogLevel < 3 {
+		return
+	}
 	msg := fmt.Sprintf(f, message...)
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
@@ -161,6 +181,9 @@ func (p *LogPrinter) Verbosef(f string, message ...interface{}) {
 }
 
 func (p *LogPrinter) Debug(message ...interface{}) {
+	if LogLevel < 4 {
+		return
+	}
 	rawSource := getFrame(1).Function
 	source := strings.Split(rawSource, "/")
 	if !running {
@@ -170,6 +193,9 @@ func (p *LogPrinter) Debug(message ...interface{}) {
 }
 
 func (p *LogPrinter) Debugf(f string, message ...interface{}) {
+	if LogLevel < 4 {
+		return
+	}
 	msg := fmt.Sprintf(f, message...)
 	rawSource := getFrame(1)
 	source := strings.Split(rawSource.Function, "/")

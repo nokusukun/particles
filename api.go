@@ -138,11 +138,13 @@ func generateAPI(sat *satellite.Satellite) *mux.Router {
 			start := time.Now()
 			rs, err := sat.Request(p, "get_rating", RatingRequest{vars["ids"]})
 			if err != nil {
+				log.Errorf("failed to write: %v", err)
 				errCode = fmt.Sprintf("failed to write: %v", err)
-			}
-			log.Debug("Waiting for streams")
-			for inbound := range rs.Stream {
-				ratings = append(ratings, inbound.Payload)
+			} else {
+				log.Debug("Waiting for streams")
+				for inbound := range rs.Stream {
+					ratings = append(ratings, inbound.Payload)
+				}
 			}
 			log.Debug("Waiting for streams is complete: ", time.Now().Sub(start))
 		} else {

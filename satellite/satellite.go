@@ -6,16 +6,18 @@ import (
 	"sync"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/perlin-network/noise"
 	"github.com/perlin-network/noise/cipher/aead"
 	"github.com/perlin-network/noise/handshake/ecdh"
-	"github.com/perlin-network/noise/nat"
 	"github.com/perlin-network/noise/protocol"
 	"github.com/perlin-network/noise/skademlia"
 
 	"github.com/nokusukun/particles/config"
 	"github.com/nokusukun/particles/roggy"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	ResponseStreamBuffer   = 100
@@ -59,7 +61,7 @@ func BuildNetwork(config *config.Satellite, keys *skademlia.Keypair) *Satellite 
 	params.Keys = keys
 	params.Port = uint16(config.Port)
 	params.Host = config.Host
-	params.NAT = nat.NewUPnP()
+	//params.NAT = nat.NewUPnP()
 
 	node, err := noise.NewNode(params)
 	if err != nil {
@@ -81,9 +83,9 @@ func BuildNetwork(config *config.Satellite, keys *skademlia.Keypair) *Satellite 
 
 	go node.Listen()
 
-	extIP, err := params.NAT.ExternalIP()
-	log.Infof("Listening for peers on port %v.", node.ExternalAddress())
-	log.Infof("NAT External IP: %v:%v", extIP.String(), node.ExternalPort())
+	//extIP, err := params.NAT.ExternalIP()
+	log.Infof("Listening for remote satellites on port %v.", node.ExternalAddress())
+	//log.Infof("NAT External IP: %v:%v", extIP.String(), node.ExternalPort())
 	log.Infof("s/kad ID: %v", hex.EncodeToString(protocol.NodeID(node).(skademlia.ID).PublicKey()))
 
 	// Makes sure that everything else gets initialized before the plug starts processing events
@@ -105,7 +107,7 @@ type ResponseStream struct {
 
 	// WHY ALL OF THIS ADDITIONAL FLUFF?
 	// Apparently, ResponseStream.close() gets executed while some of the packets are being sent through the channel
-	// giving the annoying 'channel is closing' panics.
+	// creating the 'channel is closing' panics.
 	// --
 	// hasEnded stops ResponseStream.close() from continuing if all of the packets hasn't arrived yet
 	// endPacketCount is the amount of Response packets, this value is sent by the remote peer as a payload
@@ -123,14 +125,21 @@ type ResponseStream struct {
 	onClose    func(stream *ResponseStream)
 }
 
+const (
+	StreamEndOK = iota
+	StreamEndError
+	StreamEndTimeout
+	StreamEndNotImplemented
+)
+
 func (r *ResponseStream) close() {
 	if !r.closing || !r.terminated {
 		// Set close flag to true to ensure that this never gets called again
 		r.closing = true
 
 		// Wait for all of the expected packets to arrive
-		// send 1 to hasEnded if you want to close whenever
-		<-r.hasEnded
+		// send int to hasEnded if you want to close whenever
+		endType := <-r.hasEnded
 
 		// Run the onClose function
 		r.onClose(r)
@@ -139,7 +148,7 @@ func (r *ResponseStream) close() {
 		close(r.Stream)
 
 		// Signal that the response is done
-		r.Done <- 1
+		r.Done <- endType
 
 		// Stop the timeout goroutine
 		r.timeoutStop <- 1
@@ -170,7 +179,7 @@ func (s *Satellite) Request(peer *noise.Peer, namespace string, value interface{
 		// Check if all of the packets have arrived
 		if responseStream.endPacketCount == responseStream.packetCount {
 			log.Debugf(roggy.Clr("All of the %v packets have arrived", 2), msg.returnTag())
-			responseStream.hasEnded <- 1
+			responseStream.hasEnded <- StreamEndOK
 		}
 
 		responseStream.close()
@@ -180,6 +189,7 @@ func (s *Satellite) Request(peer *noise.Peer, namespace string, value interface{
 	err = peer.SendMessage(msg)
 	if err != nil {
 		log.Debug("Ending request stream by error")
+		responseStream.hasEnded <- StreamEndError
 		responseStream.close()
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
@@ -191,6 +201,7 @@ func (s *Satellite) Request(peer *noise.Peer, namespace string, value interface{
 			return
 		case <-time.After(ResponseStreamLifetime):
 			log.Debug("Ending request stream by timeout")
+			responseStream.hasEnded <- StreamEndTimeout
 			responseStream.close()
 		}
 	}()
@@ -235,6 +246,12 @@ func (s *Satellite) assembleRequest(namespace string, value interface{}, isBroad
 		} else {
 			log.Error("received response on a closing response stream: %v", msg.returnTag())
 		}
+	})
+
+	s.Event(PType_NotImplemented, msg.returnTag(), func(i *Inbound) {
+		log.Errorf("Request %v is not implemented by the remote peer", namespace)
+		responseStream.hasEnded <- StreamEndNotImplemented
+		responseStream.close()
 	})
 
 	return msg, responseStream, nil
