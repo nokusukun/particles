@@ -1,7 +1,7 @@
-/keya.enc
+/*.enc
 /keyb.enc
 /mykey.key
-/db2
+/db*
 /db2.lock
 /db1.lock
 /db1
