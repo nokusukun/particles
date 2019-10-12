@@ -1,17 +1,22 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/pprof"
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/perlin-network/noise/skademlia"
 
+	"github.com/json-iterator/go"
+
 	"github.com/nokusukun/particles/satellite"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type WriteRequest struct {
 	PacketType  string      `json:"type"`
@@ -22,6 +27,17 @@ type WriteRequest struct {
 
 func generateAPI(sat *satellite.Satellite) *mux.Router {
 	router := mux.NewRouter()
+
+	router.HandleFunc("/debug/pprof/", pprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+
+	// Manually add support for paths linked to by index page at /debug/pprof/
+	router.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	router.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	router.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	router.Handle("/debug/pprof/block", pprof.Handler("block"))
 
 	router.HandleFunc("/peers", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Retieving Peers")
@@ -115,7 +131,7 @@ func generateAPI(sat *satellite.Satellite) *mux.Router {
 
 		vars := mux.Vars(r)
 		var errCode string
-		var ratings []*Rating
+		var ratings []interface{}
 
 		p, exists := sat.Peers[vars["peer"]]
 		if exists {
@@ -126,7 +142,7 @@ func generateAPI(sat *satellite.Satellite) *mux.Router {
 			}
 			log.Debug("Waiting for streams")
 			for inbound := range rs.Stream {
-				ratings = append(ratings, inbound.As(&Rating{}).(*Rating))
+				ratings = append(ratings, inbound.Payload)
 			}
 			log.Debug("Waiting for streams is complete: ", time.Now().Sub(start))
 		} else {

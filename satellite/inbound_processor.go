@@ -30,6 +30,7 @@ func (i *Inbound) PeerID() string {
 
 func (i *Inbound) As(in interface{}) interface{} {
 	// TODO: Change this into something more elegant, !IMPORTANT
+	// Todo: Using As results in a memory leak apparently lol.
 	b, err := json.Marshal(i.Message.Payload)
 	if err != nil {
 		log.Error(err)
