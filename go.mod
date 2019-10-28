@@ -7,6 +7,7 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b // indirect
 	github.com/google/glog v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.3
+	github.com/huin/goupnp v1.0.0
 	github.com/json-iterator/go v1.1.7
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2

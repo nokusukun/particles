@@ -49,10 +49,10 @@ func bootstrapEvents(sat *satellite.Satellite, db *bolt.DB) {
 		}
 	})
 
-	sat.Event(satellite.PType_Request, "get_rating", func(i *satellite.Inbound) {
+	sat.Event(satellite.PType_Seek, "get_rating", func(i *satellite.Inbound) {
 		// A pretty ugly oneliner to cast the payload as a struct
 		req := i.As(&RatingRequest{}).(*RatingRequest)
-
+		log.Debugf("SEEK RECEIVE: %v", i.Message.ReturnTag())
 		// Signal the requesting peer that there are no more responses left
 		// Not responding with EndReply will end up as a timeout for the other peer
 		defer i.EndReply()

@@ -43,8 +43,8 @@ func (i *Inbound) As(in interface{}) interface{} {
 }
 
 func (i *Inbound) Reply(value interface{}) {
-	tag := i.Message.returnTag()
-	log.Debug("Starting response stream to:", i.PeerID(), tag)
+	tag := i.Message.ReturnTag()
+	log.Debugf("Starting response stream to: %v / %v", i.PeerID(), tag)
 	err := i.Peer.SendMessage(&Packet{
 		PacketType: PType_Response,
 		Namespace:  tag,
@@ -58,7 +58,7 @@ func (i *Inbound) Reply(value interface{}) {
 }
 
 func (i *Inbound) EndReply() {
-	tag := i.Message.returnTag()
+	tag := i.Message.ReturnTag()
 	log.Debug("Ending response stream to:", i.PeerID(), tag)
 	err := i.Peer.SendMessage(&Packet{
 		PacketType: PType_ResponseEnd,
@@ -72,7 +72,7 @@ func (i *Inbound) EndReply() {
 }
 
 func (i *Inbound) failNotImplemented() {
-	tag := i.Message.returnTag()
+	tag := i.Message.ReturnTag()
 	log.Debug("Ending response stream to:", i.PeerID(), tag)
 	err2 := i.Peer.SendMessage(&Packet{
 		PacketType: PType_NotImplemented,
@@ -95,7 +95,14 @@ type SatPlug struct {
 }
 
 func (b *SatPlug) OnBegin(p *protocol.Protocol, peer *noise.Peer) error {
-	id := hex.EncodeToString(protocol.PeerID(peer).(skademlia.ID).PublicKey())
+	id := GetPeerID(peer)
+
+	log.Debugf("Incoming peer %v", id)
+
+	if b.Satellite.IsBanned(peer) {
+		log.Debugf("banned peer (%v) trying to connect, disconnecting", id)
+		return protocol.DisconnectPeer
+	}
 
 	if oldPeer, exists := b.Satellite.Peers[id]; exists {
 		acceptNewPeer := false
@@ -114,6 +121,7 @@ func (b *SatPlug) OnBegin(p *protocol.Protocol, peer *noise.Peer) error {
 			}
 		}
 
+		// The old one is still active, terminate the new peer
 		if !acceptNewPeer {
 			log.Error("Peer already connected:", id)
 			return protocol.DisconnectPeer
@@ -159,6 +167,7 @@ func (b *SatPlug) ReceiveSatelliteEvents(peer *noise.Peer, kill chan interface{}
 
 		case msg := <-peer.Receive(b.inOp):
 			log.Sub(logInbound).Info("Received Inbound: ", msg.(Packet).PacketType)
+			log.Sub(logInbound).Debug(msg.(Packet))
 			b.Inbounds <- &Inbound{
 				Peer:    peer,
 				Message: msg.(Packet),
@@ -192,7 +201,7 @@ func (b *SatPlug) ProcessSatelliteEvents() {
 			go ev(in)
 		} else {
 			log.Error("Received foreign event signature: ", eventSig)
-			in.failNotImplemented()
+			//in.failNotImplemented()
 		}
 
 	}

@@ -1,8 +1,9 @@
 package config
 
 type Satellite struct {
-	Host string
-	Port uint
+	Host        string
+	Port        uint
+	DisableUPNP bool
 }
 
 type Daemon struct {

@@ -27,6 +27,7 @@ var cdae = config.Daemon{}
 func init() {
 	flag.UintVar(&csat.Port, "port", 3000, "Listen for peers in specified port")
 	flag.StringVar(&csat.Host, "host", "127.0.0.1", "Listen for peers in this host")
+	flag.BoolVar(&csat.DisableUPNP, "noupnp", false, "disable UPNP")
 
 	flag.StringVar(&cdae.DialTo, "dial", "", "Bootstrap s/kad from this peer")
 	flag.StringVar(&cdae.ApiListen, "api", "", "Enable the api and serve to this address")
@@ -53,10 +54,17 @@ func main() {
 
 	log.Debug(roggy.Clr("TURNING ON DEBUG LOGS WILL SEVERELY IMPACT PERFORMANCE", 1))
 
+	if cdae.DatabasePath == "" {
+		log.Error("No database path provided --dbpath")
+		roggy.Wait()
+		os.Exit(1)
+	}
+
 	// database initialization
 	db, err := bolt.Open(cdae.DatabasePath, os.ModePerm, nil)
 	if err != nil {
 		log.Error("Opening database failed")
+		roggy.Wait()
 		panic(err)
 	}
 
@@ -70,10 +78,13 @@ func main() {
 
 	if cdae.DialTo != "" {
 		log.Info("Connecting s/kad bootstrap at ", cdae.DialTo)
-		_, err := sat.Node.Dial(cdae.DialTo)
+		peer, err := sat.Node.Dial(cdae.DialTo)
 		if err != nil {
 			log.Errorf("Failed to dial to s/kad bootstrap")
 		}
+		log.Debugf("waiting %v for bootstrap s/kad authentication", cdae.DialTo)
+		skademlia.WaitUntilAuthenticated(peer)
+		log.Infof("Bootstrapped to: %v", satellite.GetPeerID(peer))
 	}
 	bootstrapEvents(sat, db)
 

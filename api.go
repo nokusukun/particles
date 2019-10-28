@@ -105,7 +105,7 @@ func generateAPI(sat *satellite.Satellite) *mux.Router {
 			log.Debugf("failed to read body: %v", err)
 		}
 
-		json.Unmarshal(b, &rat)
+		_ = json.Unmarshal(b, &rat)
 
 		if err != nil {
 			log.Debugf("failed to marshal json: %v\n%v", err, string(b))
@@ -149,6 +149,29 @@ func generateAPI(sat *satellite.Satellite) *mux.Router {
 			log.Debug("Waiting for streams is complete: ", time.Now().Sub(start))
 		} else {
 			errCode = fmt.Sprintf("peer does not exist: %v", vars["peer"])
+		}
+
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"ratings": ratings,
+			"error":   errCode,
+		})
+	})
+
+	router.HandleFunc("/seekratings/{ids}", func(w http.ResponseWriter, r *http.Request) {
+
+		vars := mux.Vars(r)
+		var errCode string
+		var ratings []interface{}
+
+		rs, err := sat.Seek("get_rating", RatingRequest{vars["ids"]})
+		if err != nil {
+			log.Errorf("failed to broadcast: %v", err)
+			errCode = fmt.Sprintf("failed to write: %v", err)
+		} else {
+			log.Debug("Waiting for streams")
+			for inbound := range rs.Stream {
+				ratings = append(ratings, inbound.Payload)
+			}
 		}
 
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{

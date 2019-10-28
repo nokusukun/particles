@@ -15,6 +15,7 @@ const (
 	PType_Internal PType = iota
 	PType_Message
 	PType_Broadcast
+	PType_Seek
 
 	PType_Request
 	PType_Response
@@ -33,7 +34,7 @@ type Packet struct {
 	_retTag string
 }
 
-func (p Packet) returnTag() string {
+func (p Packet) ReturnTag() string {
 	if p.Timestamp == 0 {
 		p.Timestamp = time.Now().Unix()
 	}
