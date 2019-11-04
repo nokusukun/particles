@@ -1,8 +1,10 @@
 package roggy
 
 import (
+	"bufio"
 	"fmt"
 	"math/rand"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -16,13 +18,15 @@ var (
 	LogLevel         = 1
 	running          = false
 	CurrentSupMinute = ""
+	Filter           = ""
 
 	LevelText = map[int]string{
-		0: "NOTI",
-		1: "INFO",
-		2: "ERRO",
-		3: "VERB",
-		4: "DEBU",
+		-1: "ROGY",
+		0:  "NOTI",
+		1:  "INFO",
+		2:  "ERRO",
+		3:  "VERB",
+		4:  "DEBU",
 	}
 
 	wait = make(chan interface{})
@@ -215,7 +219,41 @@ func Wait() {
 	<-wait
 }
 
+func commandListener() {
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		txt := scanner.Text()
+		if strings.HasPrefix(txt, ":l") {
+			_, _ = fmt.Sscanf(txt, ":l%d", &LogLevel)
+			LogQueue <- LogShard{
+				Type:     "ROGGY",
+				Service:  "ROGGY",
+				Source:   "INTERNAL",
+				Message:  []interface{}{"Changed log level to ", LogLevel},
+				LogLevel: -1,
+				Color:    "\u001b[36;1m"}
+		}
+
+		if strings.HasPrefix(txt, ":f") {
+			_, _ = fmt.Sscanf(txt, ":f%v", &Filter)
+			msg := []interface{}{"Setting Filter to : ", Filter}
+			if Filter == ":c" {
+				Filter = ""
+				msg = []interface{}{"Clearing filter"}
+			}
+			LogQueue <- LogShard{
+				Type:     "ROGGY",
+				Service:  "ROGGY",
+				Source:   "INTERNAL",
+				Message:  msg,
+				LogLevel: -1,
+				Color:    "\u001b[36;1m"}
+		}
+	}
+}
+
 func start() {
+	go commandListener()
 	for log := range LogQueue {
 		csm := time.Now().Format("02/01/06 03:04PM")
 		if csm != CurrentSupMinute {
@@ -226,7 +264,7 @@ func start() {
 		now := time.Now().Format("05.999")
 		if log.LogLevel <= LogLevel && Enable {
 			//fmt.Println(log)
-			fmt.Print(stemp.Compile(
+			msg := stemp.Compile(
 				`{now:j=l,w=7}{col}[{type}]{lbr}{service}{rbr} {col}`,
 				map[string]interface{}{
 					"now":     now,
@@ -236,9 +274,18 @@ func start() {
 					"lbr":     Clr("[", 2),
 					"rbr":     Clr("]", 2),
 					"reset":   "\u001b[30;1m",
-				}))
-			fmt.Print(log.Message...)
-			fmt.Print(" \u001b[30;1m>src:", log.Source, "\u001b[0m\n")
+				})
+			if Filter == "" ||
+				(Filter != "" && (strings.Contains(msg, Filter) ||
+					strings.Contains(fmt.Sprint(log.Message...), Filter))) ||
+				log.LogLevel == -1 {
+				if Filter != "" {
+					fmt.Printf("F:%v|", Filter)
+				}
+				fmt.Print(msg)
+				fmt.Print(log.Message...)
+				fmt.Print(" \u001b[30;1m>src:", log.Source, "\u001b[0m\n")
+			}
 		}
 	}
 	wait <- 1
