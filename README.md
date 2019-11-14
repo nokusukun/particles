@@ -122,7 +122,6 @@ The peer can then request to another peer using the following code
 
 ### Security
 Satellites are inherently secure, connecting requires a 2048bit RSA key in order to interact with each other.
-Each packet is signed, but PSFS features a `lazysec` mode where the peers only need to sign the first packet to assume
-an authenticated status. Future packets aren't signed afterwards.
-
-Though, there are still several flaws that are still around.
+~~Each packet is signed, but PSFS features a `lazysec` mode where the peers only need to sign the first packet to assume
+an authenticated status. Future packets aren't signed afterwards.~~
+All of the security transport in particles are now being handled by the s/kademlia implementation.
