@@ -21,10 +21,10 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-const (
+var (
 	ResponseStreamBuffer   = 100
 	ResponseStreamLifetime = 10 * time.Second
-	SeekStreamLifetime     = 10 * time.Second
+	SeekStreamLifetime     = 30 * time.Second
 )
 
 var log = roggy.Printer("Satellite")

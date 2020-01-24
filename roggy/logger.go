@@ -16,6 +16,7 @@ var (
 	Enable           = true
 	LogQueue         = make(chan LogShard, 100)
 	LogLevel         = 1
+	Simple           = false
 	running          = false
 	CurrentSupMinute = ""
 	Filter           = ""
@@ -264,27 +265,36 @@ func start() {
 		now := time.Now().Format("05.999")
 		if log.LogLevel <= LogLevel && Enable {
 			//fmt.Println(log)
+			cl := log.Color
+			re := "\u001b[30;1m"
+			lbr := Clr("[", 2)
+			rbr := Clr("]", 2)
+
+			if Simple {
+				cl = ""
+				re = ""
+				lbr = ""
+				rbr = ""
+			}
+
 			msg := stemp.Compile(
 				`{now:j=l,w=7}{col}[{type}]{lbr}{service}{rbr} {col}`,
 				map[string]interface{}{
 					"now":     now,
 					"type":    LevelText[log.LogLevel],
 					"service": log.Service,
-					"col":     log.Color,
-					"lbr":     Clr("[", 2),
-					"rbr":     Clr("]", 2),
-					"reset":   "\u001b[30;1m",
+					"col":     cl,
+					"lbr":     lbr,
+					"rbr":     rbr,
+					"reset":   re,
 				})
-			if Filter == "" ||
-				(Filter != "" && (strings.Contains(msg, Filter) ||
-					strings.Contains(fmt.Sprint(log.Message...), Filter))) ||
-				log.LogLevel == -1 {
+			msg += fmt.Sprint(log.Message...)
+			msg += fmt.Sprint(" \u001b[30;1m>src:", log.Source, "\u001b[0m\n")
+			if Filter == "" || (Filter != "" && strings.Contains(msg, Filter)) || log.LogLevel == -1 {
 				if Filter != "" {
 					fmt.Printf("F:%v|", Filter)
 				}
 				fmt.Print(msg)
-				fmt.Print(log.Message...)
-				fmt.Print(" \u001b[30;1m>src:", log.Source, "\u001b[0m\n")
 			}
 		}
 	}
