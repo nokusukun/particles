@@ -20,6 +20,7 @@ var (
 	running          = false
 	CurrentSupMinute = ""
 	Filter           = ""
+	Hook             = func(shard LogShard) {}
 
 	LevelText = map[int]string{
 		-1: "ROGY",
@@ -257,6 +258,7 @@ func start() {
 	go commandListener()
 	for log := range LogQueue {
 		csm := time.Now().Format("02/01/06 03:04PM")
+		go Hook(log)
 		if csm != CurrentSupMinute {
 			CurrentSupMinute = csm
 			fmt.Printf("\u001b[33;1m--> ⏰ %v\u001b[0m\n", csm)
